@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  LocalTube design tokens — "quiet slate, electric focus".
+  Base is deep slate (not pure black, to dodge the near-black + acid-accent look).
+  Primary = violet (every CTA). Emerald --accent is reserved for LIVE / NEW signals only.
+*/
+@layer base {
+  :root {
+    --background: 220 33% 98%;
+    --foreground: 222 29% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 29% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 29% 12%;
+
+    --primary: 252 95% 62%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 222 20% 94%;
+    --secondary-foreground: 222 29% 18%;
+
+    --muted: 222 20% 95%;
+    --muted-foreground: 222 12% 44%;
+
+    --accent: 162 84% 39%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 24% 90%;
+    --input: 222 24% 90%;
+    --ring: 252 95% 62%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222 43% 7%;
+    --foreground: 219 43% 93%;
+
+    --card: 222 34% 11%;
+    --card-foreground: 219 43% 93%;
+
+    --popover: 222 36% 10%;
+    --popover-foreground: 219 43% 93%;
+
+    --primary: 252 95% 70%;
+    --primary-foreground: 222 47% 8%;
+
+    --secondary: 222 28% 16%;
+    --secondary-foreground: 219 30% 88%;
+
+    --muted: 222 28% 15%;
+    --muted-foreground: 222 15% 62%;
+
+    --accent: 162 73% 46%;
+    --accent-foreground: 222 47% 8%;
+
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 26% 19%;
+    --input: 222 26% 19%;
+    --ring: 252 95% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+}
+
+/* Skeleton shimmer used by the loading states. */
+@layer utilities {
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--foreground) / 0.06),
+      transparent
+    );
+    animation: shimmer 1.6s infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shimmer::after {
+      animation: none;
+    }
+  }
+}

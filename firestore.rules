@@ -1,0 +1,27 @@
+rules_version = '2';
+
+// LocalTube Firestore rules.
+//
+// All user data lives under users/{clerkId}. The Admin SDK (used by the webhook
+// and server actions) bypasses these rules entirely, so writes go through the
+// server. These rules exist to lock down any DIRECT client-SDK access:
+// a browser may only read/write documents whose {clerkId} matches its own
+// authenticated user id.
+//
+// This assumes you wire Clerk → Firebase Auth via a custom token so that
+// request.auth.uid === clerkId. If you keep ALL writes server-side (recommended
+// in this scaffold), you can instead deny every client write outright.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{clerkId} {
+      allow read: if request.auth != null && request.auth.uid == clerkId;
+      // Profile docs are written only by the webhook (Admin SDK) → deny client writes.
+      allow write: if false;
+
+      match /{sub=**} {
+        allow read: if request.auth != null && request.auth.uid == clerkId;
+        allow write: if false; // favorites/playlists are written by server actions.
+      }
+    }
+  }
+}
