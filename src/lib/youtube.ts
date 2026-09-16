@@ -13,11 +13,26 @@ const BASE = "https://www.googleapis.com/youtube/v3";
  * Every call runs on the server (the API key must never reach the browser) and
  * uses Next's fetch cache with a revalidate window to keep quota usage sane —
  * the free quota is 10,000 units/day and search alone costs 100 units/call.
+ * A cached response costs ZERO quota, so caching does the heavy lifting; the
+ * multi-key rotation below is just a ceiling-raiser for cold requests.
  */
-function apiKey(): string {
-  const key = process.env.YOUTUBE_API_KEY;
-  if (!key) throw new Error("YOUTUBE_API_KEY is not set");
-  return key;
+
+/**
+ * Collect every configured key, dropping unset slots. Order is the fallback
+ * order: YOUTUBE_API_KEY is tried first, then _V1.._V5.
+ */
+function allKeys(): string[] {
+  const keys = [
+    process.env.YOUTUBE_API_KEY,
+    process.env.YOUTUBE_API_KEY_V1,
+    process.env.YOUTUBE_API_KEY_V2,
+    process.env.YOUTUBE_API_KEY_V3,
+    process.env.YOUTUBE_API_KEY_V4,
+    process.env.YOUTUBE_API_KEY_V5,
+  ].filter((k): k is string => Boolean(k));
+
+  if (keys.length === 0) throw new Error("No YOUTUBE_API_KEY configured");
+  return keys;
 }
 
 async function yt<T>(
@@ -25,17 +40,31 @@ async function yt<T>(
   params: Record<string, string>,
   revalidate = 60 * 30,
 ): Promise<T> {
-  const url = new URL(`${BASE}/${path}`);
-  Object.entries({ ...params, key: apiKey() }).forEach(([k, v]) =>
-    url.searchParams.set(k, v),
-  );
+  const keys = allKeys();
+  let lastErr: unknown;
 
-  const res = await fetch(url, { next: { revalidate } });
-  if (!res.ok) {
+  // Try each key in turn; on quota/forbidden (403) move to the next one.
+  for (const key of keys) {
+    const url = new URL(`${BASE}/${path}`);
+    Object.entries({ ...params, key }).forEach(([k, v]) =>
+      url.searchParams.set(k, v),
+    );
+
+    const res = await fetch(url, { next: { revalidate } });
+    if (res.ok) return res.json() as Promise<T>;
+
+    // 403 = quotaExceeded / forbidden -> this key is spent, try the next.
+    // Any other status (400 bad request, 404, 5xx) is not key-related -> fail fast.
+    if (res.status === 403) {
+      lastErr = new Error(`YouTube key exhausted (403) on ${path}`);
+      continue;
+    }
+
     const detail = await res.text().catch(() => "");
     throw new Error(`YouTube API ${res.status}: ${detail.slice(0, 300)}`);
   }
-  return res.json() as Promise<T>;
+
+  throw lastErr ?? new Error("All YouTube API keys exhausted");
 }
 
 /* ----------------------------- Mappers ----------------------------- */
