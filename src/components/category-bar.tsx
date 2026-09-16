@@ -24,6 +24,8 @@ export function CategoryBar() {
     if (id === "all") next.delete("category");
     else next.set("category", id);
     router.push(`${pathname}?${next.toString()}`, { scroll: false });
+    // Reset the viewport so a new feed always starts from the top.
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (

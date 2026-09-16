@@ -5,6 +5,7 @@ export interface VideoSummary {
   thumbnail: string;
   channelId: string;
   channelTitle: string;
+  channelAvatar?: string; // hydrated via a batched channels.list call
   publishedAt: string;
   viewCount?: number;
   duration?: string; // ISO 8601, e.g. "PT4M13S"
@@ -25,6 +26,33 @@ export interface ChannelSummary {
   videoCount?: number;
 }
 
+/** A channel as it appears in search results (type=channel). */
+export interface ChannelResult {
+  id: string;
+  title: string;
+  description: string;
+  avatar: string;
+}
+
+export interface PlaylistSummary {
+  id: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  channelId: string;
+  channelTitle: string;
+  itemCount?: number;
+}
+
+export interface Comment {
+  id: string;
+  author: string;
+  avatar: string;
+  text: string;
+  likeCount: number;
+  publishedAt: string;
+}
+
 export type CategoryId =
   | "all"
   | "music"
@@ -33,3 +61,13 @@ export type CategoryId =
   | "news"
   | "sports"
   | "movies";
+
+export type SearchType = "video" | "playlist" | "channel" | "live";
+
+/** A single page of results plus the token for the next page (if any). */
+export interface Page<T> {
+  items: T[];
+  nextPageToken?: string;
+}
+
+export type SearchItem = VideoSummary | ChannelResult | PlaylistSummary;

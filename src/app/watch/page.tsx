@@ -1,11 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { getRelated, getVideo } from "@/lib/youtube";
+import { getComments, getRelatedPage, getVideo } from "@/lib/youtube";
 import { isFavorite } from "@/server/library";
 import { formatCount, timeAgo } from "@/lib/format";
 import { VideoPlayer } from "@/components/watch/video-player";
 import { FavoriteButton } from "@/components/watch/favorite-button";
+import { RelatedFeed } from "@/components/watch/related-feed";
+import { Comments } from "@/components/watch/comments";
 import { DescriptionToggle } from "./description-toggle";
 
 export default async function WatchPage({
@@ -19,29 +21,32 @@ export default async function WatchPage({
   const video = await getVideo(v);
   if (!video) notFound();
 
-  const [related, saved] = await Promise.all([
-    getRelated(video),
+  const seed = video.tags?.slice(0, 3).join(" ") || video.title;
+
+  const [related, comments, saved] = await Promise.all([
+    getRelatedPage(seed, video.id),
+    getComments(video.id),
     isFavorite(video.id),
   ]);
 
   return (
     <div className="mx-auto grid max-w-[1400px] gap-6 lg:grid-cols-[1fr_360px]">
-      {/* Primary column */}
       <div className="min-w-0">
         <VideoPlayer videoId={video.id} title={video.title} />
 
-        <h1 className="mt-4 text-xl font-semibold leading-tight">
-          {video.title}
-        </h1>
+        <h1 className="mt-4 text-xl font-semibold leading-tight">{video.title}</h1>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href={`/channel/${video.channelId}`}
-            className="flex items-center gap-3"
-          >
-            <span className="grid size-10 place-items-center rounded-full bg-secondary font-semibold">
-              {video.channelTitle.charAt(0).toUpperCase()}
-            </span>
+          <Link href={`/channel/${video.channelId}`} className="flex items-center gap-3">
+            <div className="relative size-10 overflow-hidden rounded-full bg-secondary">
+              {video.channelAvatar ? (
+                <Image src={video.channelAvatar} alt="" fill sizes="40px" className="object-cover" />
+              ) : (
+                <span className="grid size-10 place-items-center font-semibold">
+                  {video.channelTitle.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
             <span className="font-medium">{video.channelTitle}</span>
           </Link>
 
@@ -67,39 +72,11 @@ export default async function WatchPage({
           </p>
           <DescriptionToggle text={video.description} />
         </div>
+
+        <Comments initial={comments} videoId={video.id} />
       </div>
 
-      {/* Related sidebar */}
-      <aside className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground">
-          Up next
-        </h2>
-        {related.slice(0, 10).map((r) => (
-          <Link
-            key={r.id}
-            href={`/watch?v=${r.id}`}
-            className="group flex gap-2"
-          >
-            <div className="relative aspect-video w-40 shrink-0 overflow-hidden rounded-lg bg-muted">
-              <Image
-                src={r.thumbnail}
-                alt=""
-                fill
-                sizes="160px"
-                className="object-cover"
-              />
-            </div>
-            <div className="min-w-0">
-              <p className="line-clamp-2 text-sm font-medium group-hover:text-primary">
-                {r.title}
-              </p>
-              <p className="mt-1 truncate text-xs text-muted-foreground">
-                {r.channelTitle}
-              </p>
-            </div>
-          </Link>
-        ))}
-      </aside>
+      <RelatedFeed initial={related} seed={seed} excludeId={video.id} />
     </div>
   );
 }

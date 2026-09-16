@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { getChannel, getChannelVideos } from "@/lib/youtube";
+import { getChannel, getChannelVideosPage } from "@/lib/youtube";
 import { formatCount } from "@/lib/format";
-import { VideoGrid } from "@/components/video-grid";
+import { ChannelVideos } from "@/components/channel/channel-videos";
 
 export default async function ChannelPage({
   params,
@@ -17,19 +17,13 @@ export default async function ChannelPage({
   const channel = await getChannel(channelId);
   if (!channel) notFound();
 
-  const videos = tab === "videos" ? await getChannelVideos(channelId) : [];
+  const videos = tab === "videos" ? await getChannelVideosPage(channelId) : null;
 
   return (
     <div className="mx-auto max-w-6xl">
       {channel.banner && (
         <div className="relative mb-4 aspect-[6/1] w-full overflow-hidden rounded-xl bg-muted">
-          <Image
-            src={channel.banner}
-            alt=""
-            fill
-            className="object-cover"
-            sizes="100vw"
-          />
+          <Image src={channel.banner} alt="" fill className="object-cover" sizes="100vw" />
         </div>
       )}
 
@@ -65,11 +59,12 @@ export default async function ChannelPage({
       </nav>
 
       <div className="mt-6">
-        {tab === "videos" && <VideoGrid videos={videos} />}
+        {tab === "videos" && videos && (
+          <ChannelVideos initial={videos} channelId={channelId} />
+        )}
         {tab === "playlists" && (
           <p className="text-muted-foreground">
-            Playlists listing uses playlists.list — wire it up the same way as
-            getChannelVideos.
+            Search this channel&apos;s playlists from the search bar (Playlists tab).
           </p>
         )}
         {tab === "about" && (

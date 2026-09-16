@@ -29,10 +29,22 @@ export function VideoCard({ video }: { video: VideoSummary }) {
       <div className="mt-3 flex gap-3">
         <Link
           href={`/channel/${video.channelId}`}
-          className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground"
+          className="mt-0.5 size-9 shrink-0 overflow-hidden rounded-full bg-secondary"
           aria-label={video.channelTitle}
         >
-          {video.channelTitle.charAt(0).toUpperCase()}
+          {video.channelAvatar ? (
+            <Image
+              src={video.channelAvatar}
+              alt=""
+              width={36}
+              height={36}
+              className="size-9 object-cover"
+            />
+          ) : (
+            <span className="grid size-9 place-items-center text-sm font-semibold text-secondary-foreground">
+              {video.channelTitle.charAt(0).toUpperCase()}
+            </span>
+          )}
         </Link>
         <div className="min-w-0">
           <Link href={`/watch?v=${video.id}`}>

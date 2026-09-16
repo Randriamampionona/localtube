@@ -12,22 +12,31 @@ import {
 } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { decodeQuery, encodeQuery } from "@/lib/crypto";
+import { encodeQuery, decodeQuery } from "@/lib/crypto";
+import type { SearchType } from "@/types/youtube";
+
+const TYPES: { id: SearchType; label: string }[] = [
+  { id: "video", label: "Videos" },
+  { id: "playlist", label: "Playlists" },
+  { id: "channel", label: "Channels" },
+  { id: "live", label: "Live" },
+];
 
 export function SiteHeader() {
   const router = useRouter();
   const params = useSearchParams();
-  // The URL carries an obfuscated token — decode it back to plain text so the
-  // input shows the real query, not the hash.
   const [q, setQ] = React.useState(() => decodeQuery(params.get("q")) ?? "");
+  const [type, setType] = React.useState<SearchType>(
+    (params.get("type") as SearchType) || "video",
+  );
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = q.trim();
     if (!trimmed) return;
-    // Obfuscate before it ever hits the URL bar / history. base64url output is
-    // already URL-safe, so no extra encodeURIComponent needed.
-    router.push(`/search?q=${encodeQuery(trimmed)}`);
+    const qs = new URLSearchParams({ q: encodeQuery(trimmed) });
+    if (type !== "video") qs.set("type", type);
+    router.push(`/search?${qs.toString()}`);
   }
 
   return (
@@ -44,8 +53,22 @@ export function SiteHeader() {
 
         <form
           onSubmit={onSubmit}
-          className="mx-auto flex w-full max-w-xl items-center"
+          className="mx-auto flex w-full max-w-2xl items-center gap-2"
         >
+          {/* Content-type selector (Videos / Playlists / Channels / Live). */}
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as SearchType)}
+            aria-label="Search type"
+            className="hidden h-10 rounded-full border border-border bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:block"
+          >
+            {TYPES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input

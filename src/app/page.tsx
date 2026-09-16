@@ -1,15 +1,14 @@
 import { Suspense } from "react";
 import { CategoryBar } from "@/components/category-bar";
-import { VideoGrid } from "@/components/video-grid";
+import { HomeFeed } from "@/components/home-feed";
 import { VideoGridSkeleton } from "@/components/video-skeleton";
-import { getTrending } from "@/lib/youtube";
+import { getTrendingPage } from "@/lib/youtube";
 
-// Feeds refresh on the server every 30 min (see revalidate in the YT service).
 export const revalidate = 1800;
 
-async function TrendingFeed({ category }: { category: string }) {
-  const videos = await getTrending(category);
-  return <VideoGrid videos={videos} />;
+async function Feed({ category }: { category: string }) {
+  const initial = await getTrendingPage(category);
+  return <HomeFeed initial={initial} category={category} />;
 }
 
 export default async function HomePage({
@@ -22,9 +21,8 @@ export default async function HomePage({
   return (
     <div>
       <CategoryBar />
-      {/* key forces a fresh Suspense boundary when the category changes. */}
       <Suspense key={category} fallback={<VideoGridSkeleton />}>
-        <TrendingFeed category={category} />
+        <Feed category={category} />
       </Suspense>
     </div>
   );
