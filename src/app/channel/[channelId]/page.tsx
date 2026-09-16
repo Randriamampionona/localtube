@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { getChannel, getChannelVideosPage } from "@/lib/youtube";
+import { getChannel, getPlaylistItemsPage } from "@/lib/youtube";
 import { formatCount } from "@/lib/format";
 import { ChannelVideos } from "@/components/channel/channel-videos";
 
@@ -17,7 +17,10 @@ export default async function ChannelPage({
   const channel = await getChannel(channelId);
   if (!channel) notFound();
 
-  const videos = tab === "videos" ? await getChannelVideosPage(channelId) : null;
+  // Resolve the uploads playlist once, then page it for the whole library.
+  const uploads = channel.uploadsPlaylistId;
+  const firstPage =
+    tab === "videos" && uploads ? await getPlaylistItemsPage(uploads) : null;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -59,9 +62,12 @@ export default async function ChannelPage({
       </nav>
 
       <div className="mt-6">
-        {tab === "videos" && videos && (
-          <ChannelVideos initial={videos} channelId={channelId} />
-        )}
+        {tab === "videos" &&
+          (firstPage && uploads ? (
+            <ChannelVideos initial={firstPage} uploadsPlaylistId={uploads} />
+          ) : (
+            <p className="text-muted-foreground">This channel has no videos.</p>
+          ))}
         {tab === "playlists" && (
           <p className="text-muted-foreground">
             Search this channel&apos;s playlists from the search bar (Playlists tab).

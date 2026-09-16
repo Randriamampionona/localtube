@@ -7,6 +7,7 @@ import { GeistMono } from "geist/font/mono";
 import { Home, Library, ListVideo } from "lucide-react";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { SiteHeader } from "@/components/site-header";
+import { TopProgress } from "@/components/top-progress";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -39,7 +40,10 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            {/* Header owns the search box, which reads useSearchParams. */}
+            {/* Both read useSearchParams → wrap in Suspense. */}
+            <Suspense>
+              <TopProgress />
+            </Suspense>
             <Suspense>
               <SiteHeader />
             </Suspense>

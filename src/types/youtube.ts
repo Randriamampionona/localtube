@@ -24,6 +24,7 @@ export interface ChannelSummary {
   banner?: string;
   subscriberCount?: number;
   videoCount?: number;
+  uploadsPlaylistId?: string; // contentDetails.relatedPlaylists.uploads
 }
 
 /** A channel as it appears in search results (type=channel). */

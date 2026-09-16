@@ -1,7 +1,6 @@
 "use server";
 
 import {
-  getChannelVideosPage,
   getComments,
   getPlaylistItemsPage,
   getRelatedPage,
@@ -36,13 +35,6 @@ export async function loadSearch(
   pageToken?: string,
 ): Promise<Page<VideoSummary | ChannelResult | PlaylistSummary>> {
   return searchPage(query, type, pageToken);
-}
-
-export async function loadChannelVideos(
-  channelId: string,
-  pageToken?: string,
-): Promise<Page<VideoSummary>> {
-  return getChannelVideosPage(channelId, pageToken);
 }
 
 export async function loadRelated(

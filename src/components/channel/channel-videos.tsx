@@ -4,19 +4,24 @@ import * as React from "react";
 import { VideoCard } from "@/components/video-card";
 import { FeedStatus } from "@/components/feed-status";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
-import { loadChannelVideos } from "@/server/feed";
+import { loadPlaylistItems } from "@/server/feed";
 import type { Page, VideoSummary } from "@/types/youtube";
 
+/**
+ * A channel's full video library = its auto-generated "uploads" playlist.
+ * We page through it with playlistItems (50/page) rather than search.list,
+ * which returns the complete catalogue in order and costs far less quota.
+ */
 export function ChannelVideos({
   initial,
-  channelId,
+  uploadsPlaylistId,
 }: {
   initial: Page<VideoSummary>;
-  channelId: string;
+  uploadsPlaylistId: string;
 }) {
   const loader = React.useCallback(
-    (token: string) => loadChannelVideos(channelId, token),
-    [channelId],
+    (token: string) => loadPlaylistItems(uploadsPlaylistId, token),
+    [uploadsPlaylistId],
   );
   const { items, sentinelRef, loading, done, error } = useInfiniteScroll(
     initial,

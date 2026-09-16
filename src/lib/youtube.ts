@@ -323,7 +323,7 @@ export async function getComments(
 
 export async function getChannel(channelId: string): Promise<ChannelSummary | null> {
   const data = await yt<{ items: any[] }>("channels", {
-    part: "snippet,statistics,brandingSettings",
+    part: "snippet,statistics,brandingSettings,contentDetails",
     id: channelId,
   });
   const item = data.items?.[0];
@@ -339,23 +339,10 @@ export async function getChannel(channelId: string): Promise<ChannelSummary | nu
       ? Number(item.statistics.subscriberCount)
       : undefined,
     videoCount: item.statistics?.videoCount ? Number(item.statistics.videoCount) : undefined,
+    // Every channel has an auto-generated "uploads" playlist containing its
+    // entire library, in order — the correct source for the videos grid.
+    uploadsPlaylistId: item.contentDetails?.relatedPlaylists?.uploads,
   };
-}
-
-export async function getChannelVideosPage(
-  channelId: string,
-  pageToken?: string,
-): Promise<Page<VideoSummary>> {
-  const search = await yt<{ items: any[]; nextPageToken?: string }>("search", {
-    part: "snippet",
-    channelId,
-    order: "date",
-    type: "video",
-    maxResults: "24",
-    ...(pageToken ? { pageToken } : {}),
-  });
-  const ids = search.items.map((i) => i.id?.videoId).filter(Boolean);
-  return hydrateVideoIds(ids, search.nextPageToken);
 }
 
 /* ----------------------------- Playlist ----------------------------- */
@@ -376,7 +363,7 @@ export async function getPlaylistItemsPage(
   const data = await yt<{ items: any[]; nextPageToken?: string }>("playlistItems", {
     part: "snippet,contentDetails",
     playlistId,
-    maxResults: "24",
+    maxResults: "50", // playlistItems max — fewer round-trips for big channels
     ...(pageToken ? { pageToken } : {}),
   });
   const ids = (data.items ?? [])
