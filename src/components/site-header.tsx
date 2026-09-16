@@ -12,16 +12,22 @@ import {
 } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { decodeQuery, encodeQuery } from "@/lib/crypto";
 
 export function SiteHeader() {
   const router = useRouter();
   const params = useSearchParams();
-  const [q, setQ] = React.useState(params.get("q") ?? "");
+  // The URL carries an obfuscated token — decode it back to plain text so the
+  // input shows the real query, not the hash.
+  const [q, setQ] = React.useState(() => decodeQuery(params.get("q")) ?? "");
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = q.trim();
-    if (trimmed) router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+    if (!trimmed) return;
+    // Obfuscate before it ever hits the URL bar / history. base64url output is
+    // already URL-safe, so no extra encodeURIComponent needed.
+    router.push(`/search?q=${encodeQuery(trimmed)}`);
   }
 
   return (

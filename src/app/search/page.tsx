@@ -4,13 +4,14 @@ import Image from "next/image";
 import { searchVideos } from "@/lib/youtube";
 import { formatCount, formatDuration, timeAgo } from "@/lib/format";
 import { VideoGridSkeleton } from "@/components/video-skeleton";
+import { decodeQuery } from "@/lib/crypto";
 
-async function Results({ q }: { q: string }) {
-  const videos = await searchVideos(q, 20);
+async function Results({ query }: { query: string }) {
+  const videos = await searchVideos(query, 20);
   if (videos.length === 0) {
     return (
       <p className="py-16 text-center text-muted-foreground">
-        No results for “{q}”.
+        No results for “{query}”.
       </p>
     );
   }
@@ -59,17 +60,25 @@ export default async function SearchPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  const { q = "" } = await searchParams;
+  const { q } = await searchParams;
+  // Decode the obfuscated token. null = missing or corrupted → clean state.
+  const query = decodeQuery(q);
 
   return (
     <div>
       <h1 className="mb-4 text-lg font-semibold">
-        {q ? `Results for “${q}”` : "Search"}
+        {query ? `Results for “${query}”` : "Search"}
       </h1>
-      {q ? (
-        <Suspense key={q} fallback={<VideoGridSkeleton count={6} />}>
-          <Results q={q} />
+
+      {query ? (
+        <Suspense key={query} fallback={<VideoGridSkeleton count={6} />}>
+          <Results query={query} />
         </Suspense>
+      ) : q ? (
+        // A `q` was present but couldn't be decoded — fail gracefully.
+        <p className="text-muted-foreground">
+          That search link looks invalid. Try searching again from the bar above.
+        </p>
       ) : (
         <p className="text-muted-foreground">Type a query in the search bar.</p>
       )}
