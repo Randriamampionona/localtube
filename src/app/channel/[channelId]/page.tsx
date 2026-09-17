@@ -23,14 +23,14 @@ export default async function ChannelPage({
     tab === "videos" && uploads ? await getPlaylistItemsPage(uploads) : null;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-6xl overflow-x-hidden">
       {channel.banner && (
         <div className="relative mb-4 aspect-[6/1] w-full overflow-hidden rounded-xl bg-muted">
           <Image src={channel.banner} alt="" fill className="object-cover" sizes="100vw" />
         </div>
       )}
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
         <div className="relative size-20 overflow-hidden rounded-full bg-secondary">
           {channel.avatar && (
             <Image src={channel.avatar} alt="" fill sizes="80px" className="object-cover" />
@@ -45,15 +45,16 @@ export default async function ChannelPage({
         </div>
       </div>
 
-      <nav className="mt-6 flex gap-6 border-b border-border text-sm font-medium">
+      <nav className="mt-6 flex gap-6 overflow-x-auto border-b border-border text-sm font-medium [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {(["videos", "playlists", "about"] as const).map((t) => (
           <a
             key={t}
             href={`/channel/${channelId}?tab=${t}`}
             className={
-              tab === t
+              "shrink-0 whitespace-nowrap " +
+              (tab === t
                 ? "border-b-2 border-foreground pb-3 capitalize"
-                : "pb-3 capitalize text-muted-foreground hover:text-foreground"
+                : "pb-3 capitalize text-muted-foreground hover:text-foreground")
             }
           >
             {t}

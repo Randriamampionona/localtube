@@ -64,7 +64,7 @@ export default function RootLayout({
                 </nav>
               </aside>
 
-              <main className="min-w-0 flex-1 px-4 py-4 sm:px-6">
+              <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-4 sm:px-6">
                 {children}
               </main>
             </div>

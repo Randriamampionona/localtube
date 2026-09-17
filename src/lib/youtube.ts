@@ -183,7 +183,7 @@ export async function getTrendingPage(
     const data = await yt<{ items: any[]; nextPageToken?: string }>("videos", {
       part: "snippet,statistics,contentDetails",
       chart: "mostPopular",
-      maxResults: "24",
+      maxResults: "50",
       regionCode,
       ...(pageToken ? { pageToken } : {}),
     });
@@ -207,7 +207,8 @@ async function searchList(
       part: "snippet",
       q: query,
       type,
-      maxResults: "20",
+      maxResults: "50", // API maximum — fullest result set per request
+      safeSearch: "none", // no SafeSearch filtering (valid for every type)
       ...(pageToken ? { pageToken } : {}),
       ...extra,
     },
@@ -220,12 +221,13 @@ export async function searchVideosPage(
   pageToken?: string,
   live = false,
 ): Promise<Page<VideoSummary>> {
-  const search = await searchList(
-    query,
-    "video",
-    pageToken,
-    live ? { eventType: "live" } : {},
-  );
+  // videoSyndicated / eventType are video-only filters — safe to send here
+  // because type=video. "any" stops syndication filtering from dropping
+  // videos that are playable only on certain domains.
+  const search = await searchList(query, "video", pageToken, {
+    videoSyndicated: "any",
+    ...(live ? { eventType: "live" } : {}),
+  });
   const ids = search.items.map((i) => i.id?.videoId).filter(Boolean);
   return hydrateVideoIds(ids, search.nextPageToken);
 }
@@ -370,4 +372,95 @@ export async function getPlaylistItemsPage(
     .map((i) => i.contentDetails?.videoId ?? i.snippet?.resourceId?.videoId)
     .filter(Boolean);
   return hydrateVideoIds(ids, data.nextPageToken);
+}
+
+/* --------------------- Authenticated (OAuth) calls --------------------- */
+
+/**
+ * Fetch with a user's Google Bearer token instead of the API key. These
+ * responses are per-user, so they MUST NOT be cached/shared — hence no-store.
+ */
+async function ytAuth<T>(
+  path: string,
+  params: Record<string, string>,
+  token: string,
+): Promise<T> {
+  const url = new URL(`${BASE}/${path}`);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new YouTubeApiError(res.status, `YouTube ${res.status} on ${path}: ${detail.slice(0, 200)}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+/**
+ * Personalized "subscriptions" feed: the latest uploads from the channels the
+ * user follows, merged and sorted newest-first.
+ *
+ * NOTE: There is no public API for YouTube's actual recommendation home feed
+ * (activities.list(home=true) was removed years ago, and mine=true returns only
+ * the user's OWN activity). Subscriptions' latest uploads is the closest
+ * authentic personalized feed the API exposes.
+ *
+ * Only subscriptions.list needs the token; channels/playlistItems/videos are
+ * public data fetched with the key so they stay cached and cheap.
+ */
+export async function getSubscriptionsFeed(
+  token: string,
+  pageToken?: string,
+): Promise<Page<VideoSummary>> {
+  const subs = await ytAuth<{ items: any[]; nextPageToken?: string }>(
+    "subscriptions",
+    {
+      part: "snippet",
+      mine: "true",
+      maxResults: "25",
+      order: "relevance",
+      ...(pageToken ? { pageToken } : {}),
+    },
+    token,
+  );
+
+  const channelIds = subs.items
+    .map((i) => i.snippet?.resourceId?.channelId)
+    .filter(Boolean);
+  if (channelIds.length === 0) return { items: [], nextPageToken: subs.nextPageToken };
+
+  // Resolve each subscribed channel's uploads playlist (public → key + cache).
+  const ch = await yt<{ items: any[] }>("channels", {
+    part: "contentDetails",
+    id: channelIds.slice(0, 50).join(","),
+    maxResults: "50",
+  });
+  const uploads = ch.items
+    .map((c) => c.contentDetails?.relatedPlaylists?.uploads)
+    .filter(Boolean);
+
+  // Pull the few most recent uploads from each channel in parallel.
+  const perChannel = await Promise.all(
+    uploads.map(async (playlistId: string) => {
+      try {
+        const r = await yt<{ items: any[] }>("playlistItems", {
+          part: "contentDetails",
+          playlistId,
+          maxResults: "3",
+        });
+        return (r.items ?? [])
+          .map((it) => it.contentDetails?.videoId)
+          .filter(Boolean) as string[];
+      } catch {
+        return [] as string[];
+      }
+    }),
+  );
+
+  const ids = [...new Set(perChannel.flat())].slice(0, 45);
+  const page = await hydrateVideoIds(ids, subs.nextPageToken);
+  page.items.sort((a, b) => (b.publishedAt || "").localeCompare(a.publishedAt || ""));
+  return page;
 }

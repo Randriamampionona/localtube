@@ -4,9 +4,11 @@ import {
   getComments,
   getPlaylistItemsPage,
   getRelatedPage,
+  getSubscriptionsFeed,
   getTrendingPage,
   searchPage,
 } from "@/lib/youtube";
+import { getGoogleAccessToken } from "@/lib/google";
 import type {
   ChannelResult,
   Comment,
@@ -26,6 +28,29 @@ export async function loadTrending(
   category: string,
   pageToken?: string,
 ): Promise<Page<VideoSummary>> {
+  return getTrendingPage(category, pageToken);
+}
+
+/**
+ * Home feed loader. For the "all" tab, a signed-in user who granted the
+ * youtube.readonly scope gets their subscriptions feed; everyone else (and
+ * every other category) falls back to the trending chart.
+ */
+export async function loadHome(
+  category: string,
+  pageToken?: string,
+): Promise<Page<VideoSummary>> {
+  if (category === "all") {
+    const token = await getGoogleAccessToken();
+    if (token) {
+      try {
+        const page = await getSubscriptionsFeed(token, pageToken);
+        if (page.items.length) return page;
+      } catch {
+        /* scope revoked / quota / transient — fall back to trending */
+      }
+    }
+  }
   return getTrendingPage(category, pageToken);
 }
 
