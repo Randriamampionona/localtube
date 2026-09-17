@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, RefreshCw, Shield, ShieldCheck } from "lucide-react";
+import { AlertTriangle, PictureInPicture2, Shield, ShieldCheck, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/* ---- Minimal typings for YouTube IFrame API ---- */
+/* ---- Minimal typings for the YouTube IFrame Player API (no `any`) ---- */
 interface YTPlayer {
   destroy: () => void;
 }
@@ -40,13 +40,8 @@ function loadYouTubeApi(): Promise<YTNamespace> {
 }
 
 const STORAGE_KEY = "localtube:privacy-embed";
-
-// List of online proxy services for inline playback fallback
-const MIRROR_SERVICES = [
-  { name: "Invidious (Yewtu.be)", url: (id: string) => `https://yewtu.be/embed/${id}?autoplay=1` },
-  { name: "Invidious (Nadeko)", url: (id: string) => `https://inv.nadeko.net/embed/${id}?autoplay=1` },
-  { name: "Piped Video", url: (id: string) => `https://piped.video/embed/${id}?autoplay=1` },
-];
+const EMBED_BLOCKED = new Set([100, 101, 150]);
+const API_TIMEOUT = 4000; // if the IFrame API can't load, fall back to a plain embed
 
 export function VideoPlayer({
   videoId,
@@ -59,7 +54,10 @@ export function VideoPlayer({
   const playerRef = React.useRef<YTPlayer | null>(null);
   const [noCookie, setNoCookie] = React.useState(false);
   const [errorCode, setErrorCode] = React.useState<number | null>(null);
-  const [mirrorIndex, setMirrorIndex] = React.useState<number | null>(null);
+  const [bridgeActive, setBridgeActive] = React.useState(false);
+  // If the IFrame API is blocked/slow, we render a plain iframe so the video
+  // ALWAYS plays. That's the reliability net that keeps playback working.
+  const [apiFailed, setApiFailed] = React.useState(false);
 
   React.useEffect(() => {
     try {
@@ -70,48 +68,57 @@ export function VideoPlayer({
     }
   }, []);
 
-  // Initialize YouTube IFrame API
+  const domain = noCookie
+    ? "https://www.youtube-nocookie.com"
+    : "https://www.youtube.com";
+
   React.useEffect(() => {
     let cancelled = false;
     setErrorCode(null);
-    setMirrorIndex(null);
+    setBridgeActive(false);
+    setApiFailed(false);
 
-    loadYouTubeApi().then((YT) => {
-      if (cancelled || !hostRef.current) return;
-      hostRef.current.innerHTML = "";
-      const mount = document.createElement("div");
-      mount.className = "size-full";
-      hostRef.current.appendChild(mount);
+    // Fallback if the API never initializes (ad-blocker, CSP, network).
+    const timer = window.setTimeout(() => {
+      if (!cancelled && !playerRef.current) setApiFailed(true);
+    }, API_TIMEOUT);
 
-      playerRef.current = new YT.Player(mount, {
-        videoId,
-        width: "100%",
-        height: "100%",
-        host: noCookie
-          ? "https://www.youtube-nocookie.com"
-          : "https://www.youtube.com",
-        playerVars: {
-          rel: 0,
-          controls: 1,
-          playsinline: 1,
-          fs: 1,
-          modestbranding: 1,
-          origin: typeof window !== "undefined" ? window.location.origin : undefined,
-        },
-        events: {
-          onError: (e: YTErrorEvent) => {
-            if (!cancelled) {
-              setErrorCode(e.data);
-              // Automatically switch to first online proxy mirror on embed block
-              setMirrorIndex(0);
-            }
+    loadYouTubeApi()
+      .then((YT) => {
+        if (cancelled || !hostRef.current) return;
+        window.clearTimeout(timer);
+        hostRef.current.innerHTML = "";
+        const mount = document.createElement("div");
+        mount.className = "size-full";
+        hostRef.current.appendChild(mount);
+
+        playerRef.current = new YT.Player(mount, {
+          videoId,
+          width: "100%",
+          height: "100%",
+          host: domain,
+          playerVars: {
+            rel: 0,
+            controls: 1,
+            playsinline: 1,
+            fs: 1,
+            modestbranding: 1,
+            origin: typeof window !== "undefined" ? window.location.origin : undefined,
           },
-        },
+          events: {
+            onError: (e: YTErrorEvent) => {
+              if (!cancelled) setErrorCode(e.data);
+            },
+          },
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setApiFailed(true);
       });
-    });
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
       try {
         playerRef.current?.destroy();
       } catch {
@@ -119,9 +126,9 @@ export function VideoPlayer({
       }
       playerRef.current = null;
     };
-  }, [videoId, noCookie]);
+  }, [videoId, domain]);
 
-  function togglePrivacy() {
+  function toggle() {
     setNoCookie((prev) => {
       const next = !prev;
       try {
@@ -133,57 +140,81 @@ export function VideoPlayer({
     });
   }
 
-  function cycleNextMirror() {
-    setMirrorIndex((prev) =>
-      prev === null ? 0 : (prev + 1) % MIRROR_SERVICES.length
-    );
-  }
-
-  const activeMirror = mirrorIndex !== null ? MIRROR_SERVICES[mirrorIndex] : null;
+  const blocked = errorCode !== null;
+  const ageRestricted = errorCode !== null && EMBED_BLOCKED.has(errorCode);
 
   return (
     <div className="space-y-2">
       <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black">
-        {/* Standard YouTube Player */}
-        <div ref={hostRef} className="absolute inset-0 size-full" />
-
-        {/* Inline Proxy Mirror Bridge (Keeps playback entirely inside the player container) */}
-        {activeMirror && (
+        {apiFailed ? (
+          // Reliable plain-embed fallback — always plays normal videos.
           <iframe
-            key={`${activeMirror.name}-${videoId}`}
-            className="absolute inset-0 z-10 size-full border-0"
-            src={activeMirror.url(videoId)}
+            key={`fallback-${videoId}-${noCookie}`}
+            className="absolute inset-0 size-full"
+            src={`${domain}/embed/${videoId}?rel=0&controls=1&playsinline=1&modestbranding=1`}
             title={title}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerPolicy="strict-origin-when-cross-origin"
             allowFullScreen
           />
+        ) : (
+          <div ref={hostRef} className="absolute inset-0 size-full" />
+        )}
+
+        {/* In-box bridge (button-triggered), no popup. */}
+        {blocked && bridgeActive && (
+          <>
+            <iframe
+              key={`bridge-${videoId}`}
+              className="absolute inset-0 z-10 size-full"
+              src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&modestbranding=1&playsinline=1&rel=0`}
+              title={title}
+              sandbox="allow-scripts allow-same-origin allow-presentation"
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+              allowFullScreen
+            />
+            <button
+              type="button"
+              onClick={() => setBridgeActive(false)}
+              aria-label="Close bridge"
+              className="absolute right-2 top-2 z-20 grid size-8 place-items-center rounded-full bg-black/70 text-white backdrop-blur hover:bg-black/85"
+            >
+              <X className="size-4" />
+            </button>
+          </>
+        )}
+
+        {blocked && !bridgeActive && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-black/85 px-6 text-center">
+            <AlertTriangle className="size-8 text-accent" />
+            <p className="max-w-sm text-sm text-white/90">
+              {ageRestricted
+                ? "This video is age-restricted or can't be embedded here."
+                : "This video can't be played in the embedded player."}
+            </p>
+            <button
+              type="button"
+              onClick={() => setBridgeActive(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <PictureInPicture2 className="size-4" /> Open Player Bridge
+            </button>
+          </div>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-        <div className="flex items-center gap-2">
-          {errorCode !== null && (
-            <span className="inline-flex items-center gap-1 font-medium text-amber-500">
-              <AlertTriangle className="size-3.5" /> Restricted Embed
-            </span>
-          )}
-
-          <button
-            type="button"
-            onClick={cycleNextMirror}
-            className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 font-medium text-muted-foreground hover:text-foreground"
-          >
-            <RefreshCw className="size-3.5" />
-            Source: {activeMirror ? activeMirror.name : "YouTube Standard"}
-          </button>
-        </div>
-
+      <div className="flex justify-end">
         <button
           type="button"
-          onClick={togglePrivacy}
+          onClick={toggle}
           aria-pressed={noCookie}
+          title={
+            noCookie
+              ? "Privacy mode on (youtube-nocookie.com)"
+              : "Privacy mode off (youtube.com)"
+          }
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium transition-colors",
+            "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
             noCookie
               ? "bg-accent/15 text-accent hover:bg-accent/25"
               : "bg-secondary text-muted-foreground hover:text-foreground",

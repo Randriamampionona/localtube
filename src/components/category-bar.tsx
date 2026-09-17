@@ -24,12 +24,12 @@ export function CategoryBar() {
     if (id === "all") next.delete("category");
     else next.set("category", id);
     router.push(`${pathname}?${next.toString()}`, { scroll: false });
-    // Reset the viewport so a new feed always starts from the top.
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
-    <div className="sticky top-16 z-30 -mx-4 mb-4 flex gap-2 overflow-x-auto border-b border-border bg-background/80 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    // Normal flow (not sticky) + solid background → never overlaps the grid.
+    <div className="-mx-4 mb-6 flex gap-2 overflow-x-auto bg-background px-4 py-3 sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {CATEGORIES.map((c) => (
         <button
           key={c.id}
@@ -37,7 +37,7 @@ export function CategoryBar() {
           className={cn(
             "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
             active === c.id
-              ? "bg-foreground text-background"
+              ? "bg-primary text-primary-foreground"
               : "bg-secondary text-secondary-foreground hover:bg-secondary/70",
           )}
         >
