@@ -22,6 +22,11 @@ function allKeys(): string[] {
     process.env.YOUTUBE_API_KEY_V3,
     process.env.YOUTUBE_API_KEY_V4,
     process.env.YOUTUBE_API_KEY_V5,
+    process.env.YOUTUBE_API_KEY_V6,
+    process.env.YOUTUBE_API_KEY_V7,
+    process.env.YOUTUBE_API_KEY_V8,
+    process.env.YOUTUBE_API_KEY_V9,
+    process.env.YOUTUBE_API_KEY_V10,
   ].filter((k): k is string => Boolean(k));
   if (keys.length === 0) throw new Error("No YOUTUBE_API_KEY configured");
   return keys;
