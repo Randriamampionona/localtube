@@ -34,6 +34,12 @@ function allKeys(): string[] {
 
 const QUOTA_REASON = /quotaExceeded|dailyLimitExceeded|rateLimitExceeded|userRateLimitExceeded/;
 
+/** True when a failed response means "this key is spent" and we should rotate. */
+function isQuotaError(status: number, body: string): boolean {
+  // Quota errors arrive as 429, OR as 403 with a quota reason in the body.
+  return status === 429 || (status === 403 && QUOTA_REASON.test(body));
+}
+
 /** Thrown for a non-quota 4xx (e.g. commentsDisabled) so callers can catch it. */
 class YouTubeApiError extends Error {
   constructor(readonly status: number, message: string) {
@@ -59,14 +65,18 @@ async function yt<T>(
     if (res.ok) return res.json() as Promise<T>;
 
     const detail = await res.text().catch(() => "");
-    // Only a genuine quota 403 should rotate to the next key. Every other
-    // failure (commentsDisabled, bad request, 404) is the same on every key.
-    if (res.status === 403 && QUOTA_REASON.test(detail)) {
-      lastErr = new YouTubeApiError(403, `key exhausted on ${path}`);
+    // Quota (403 quotaExceeded OR 429) → this key is done, try the next one.
+    // Any other error (commentsDisabled, 400, 404) is identical on every key.
+    if (isQuotaError(res.status, detail)) {
+      lastErr = new YouTubeApiError(res.status, `key exhausted on ${path}`);
       continue;
     }
-    throw new YouTubeApiError(res.status, `YouTube ${res.status} on ${path}: ${detail.slice(0, 200)}`);
+    throw new YouTubeApiError(
+      res.status,
+      `YouTube ${res.status} on ${path}: ${detail.slice(0, 200)}`,
+    );
   }
+  // Every key was quota-exhausted.
   throw lastErr ?? new Error("All YouTube API keys exhausted");
 }
 
@@ -161,7 +171,7 @@ async function hydrateVideoIds(
   if (ids.length === 0) return { items: [], nextPageToken };
   const details = await yt<{ items: any[] }>("videos", {
     part: "snippet,statistics,contentDetails",
-    id: ids.join(","),
+    id: ids.slice(0, 50).join(","), // videos.list caps at 50 ids
   });
   const items = await hydrateAvatars(details.items.map(mapVideoItem));
   return { items, nextPageToken };
@@ -185,13 +195,17 @@ export async function getTrendingPage(
   regionCode = "US",
 ): Promise<Page<VideoSummary>> {
   if (category === "all") {
-    const data = await yt<{ items: any[]; nextPageToken?: string }>("videos", {
-      part: "snippet,statistics,contentDetails",
-      chart: "mostPopular",
-      maxResults: "50",
-      regionCode,
-      ...(pageToken ? { pageToken } : {}),
-    });
+    const data = await yt<{ items: any[]; nextPageToken?: string }>(
+      "videos",
+      {
+        part: "snippet,statistics,contentDetails",
+        chart: "mostPopular",
+        maxResults: "50",
+        regionCode,
+        ...(pageToken ? { pageToken } : {}),
+      },
+      60 * 60, // trending changes slowly — cache 1h (0 quota on cache hits)
+    );
     const items = await hydrateAvatars(data.items.map(mapVideoItem));
     return { items, nextPageToken: data.nextPageToken };
   }
@@ -217,7 +231,8 @@ async function searchList(
       ...(pageToken ? { pageToken } : {}),
       ...extra,
     },
-    60 * 10,
+    // search costs 100 quota units — cache hard (1h). A cache hit is free.
+    60 * 60,
   );
 }
 
@@ -226,9 +241,7 @@ export async function searchVideosPage(
   pageToken?: string,
   live = false,
 ): Promise<Page<VideoSummary>> {
-  // videoSyndicated / eventType are video-only filters — safe to send here
-  // because type=video. "any" stops syndication filtering from dropping
-  // videos that are playable only on certain domains.
+  // videoSyndicated / eventType are video-only filters — safe here (type=video).
   const search = await searchList(query, "video", pageToken, {
     videoSyndicated: "any",
     ...(live ? { eventType: "live" } : {}),
@@ -299,7 +312,10 @@ export async function getRelatedPage(
   pageToken?: string,
 ): Promise<Page<VideoSummary>> {
   const page = await searchVideosPage(seed, pageToken);
-  return { items: page.items.filter((v) => v.id !== excludeId), nextPageToken: page.nextPageToken };
+  return {
+    items: page.items.filter((v) => v.id !== excludeId),
+    nextPageToken: page.nextPageToken,
+  };
 }
 
 export async function getComments(
@@ -317,7 +333,7 @@ export async function getComments(
         textFormat: "plainText",
         ...(pageToken ? { pageToken } : {}),
       },
-      60 * 5,
+      60 * 30,
     );
     return { items: data.items.map(mapComment), nextPageToken: data.nextPageToken };
   } catch {
@@ -398,7 +414,10 @@ async function ytAuth<T>(
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new YouTubeApiError(res.status, `YouTube ${res.status} on ${path}: ${detail.slice(0, 200)}`);
+    throw new YouTubeApiError(
+      res.status,
+      `YouTube ${res.status} on ${path}: ${detail.slice(0, 200)}`,
+    );
   }
   return res.json() as Promise<T>;
 }
