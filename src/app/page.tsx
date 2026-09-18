@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { CategoryBar } from "@/components/category-bar";
+import { listFollowedTerms } from "@/server/terms";
 import { HomeFeed } from "@/components/home-feed";
 import { VideoGridSkeleton } from "@/components/video-skeleton";
 import { getGoogleAccessToken } from "@/lib/google";
@@ -39,10 +40,11 @@ export default async function HomePage({
   searchParams: Promise<{ category?: string }>;
 }) {
   const { category = "all" } = await searchParams;
+  const followed = await listFollowedTerms();
 
   return (
     <div>
-      <CategoryBar />
+      <CategoryBar followed={followed} />
       <Suspense key={category} fallback={<VideoGridSkeleton />}>
         <Feed category={category} />
       </Suspense>

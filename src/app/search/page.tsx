@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { decodeQuery } from "@/lib/crypto";
+import { isTermFollowed } from "@/server/terms";
+import { FollowTermButton } from "@/components/search/follow-term-button";
 import { searchPage } from "@/lib/youtube";
 import { SearchResults } from "@/components/search/search-results";
 import { SearchTypeTabs } from "@/components/search/search-type-tabs";
@@ -24,12 +26,16 @@ export default async function SearchPage({
   const { q, type: rawType } = await searchParams;
   const query = decodeQuery(q);
   const type = normalizeType(rawType);
+  const followed = query ? await isTermFollowed(query) : false;
 
   return (
     <div>
-      <h1 className="mb-4 text-lg font-semibold">
-        {query ? `Results for “${query}”` : "Search"}
-      </h1>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h1 className="text-lg font-semibold">
+          {query ? `Results for “${query}”` : "Search"}
+        </h1>
+        {query && <FollowTermButton term={query} initialFollowed={followed} />}
+      </div>
 
       {query ? (
         <>
