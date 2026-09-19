@@ -1,7 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, PictureInPicture2, Shield, ShieldCheck, X } from "lucide-react";
+import {
+  AlertTriangle,
+  PictureInPicture2,
+  Shield,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* ---- Minimal typings for the YouTube IFrame Player API (no `any`) ---- */
@@ -103,7 +109,12 @@ export function VideoPlayer({
             playsinline: 1,
             fs: 1,
             modestbranding: 1,
-            origin: typeof window !== "undefined" ? window.location.origin : undefined,
+            autoplay: 1,
+            mute: 1,
+            origin:
+              typeof window !== "undefined"
+                ? window.location.origin
+                : undefined,
           },
           events: {
             onError: (e: YTErrorEvent) => {
@@ -151,7 +162,7 @@ export function VideoPlayer({
           <iframe
             key={`fallback-${videoId}-${noCookie}`}
             className="absolute inset-0 size-full"
-            src={`${domain}/embed/${videoId}?rel=0&controls=1&playsinline=1&modestbranding=1`}
+            src={`${domain}/embed/${videoId}?rel=0&controls=1&playsinline=1&modestbranding=1&autoplay=1&mute=1`}
             title={title}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             referrerPolicy="strict-origin-when-cross-origin"
@@ -220,7 +231,11 @@ export function VideoPlayer({
               : "bg-secondary text-muted-foreground hover:text-foreground",
           )}
         >
-          {noCookie ? <ShieldCheck className="size-3.5" /> : <Shield className="size-3.5" />}
+          {noCookie ? (
+            <ShieldCheck className="size-3.5" />
+          ) : (
+            <Shield className="size-3.5" />
+          )}
           Privacy mode {noCookie ? "on" : "off"}
         </button>
       </div>
